@@ -62,7 +62,7 @@ SYMLINK    := ln -sf
 FIND       := find
 GREP       := grep
 XARGS      := xargs
-RANLIB     := ranlib
+RANLIB     := emranlib
 INSTALL    := install -c
 
 # Used to refresh CHANGELOG.
@@ -76,7 +76,7 @@ GIT_LOG    := $(GIT) log --decorate
 #
 
 # --- Determine the C compiler and related flags ---
-CC             := gcc
+CC             := emcc
 # Enable IEEE Standard 1003.1-2004 (POSIX.1d). 
 # NOTE: This is needed to enable posix_memalign().
 CPPROCFLAGS    := -D_POSIX_C_SOURCE=200112L
@@ -84,7 +84,7 @@ CMISCFLAGS     := -std=c99 # -fopenmp -pg
 CPICFLAGS      := -fPIC
 CDBGFLAGS      := #-g
 CWARNFLAGS     := -Wall
-COPTFLAGS      := -O2
+COPTFLAGS      := -O0
 CKOPTFLAGS     := $(COPTFLAGS)
 CVECFLAGS      := #-msse3 -march=native # -mfpmath=sse
 
@@ -96,7 +96,7 @@ CFLAGS         := $(COPTFLAGS)  $(CVECFLAGS) $(CFLAGS_NOOPT)
 CFLAGS_KERNELS := $(CKOPTFLAGS) $(CVECFLAGS) $(CFLAGS_NOOPT)
 
 # --- Determine the archiver and related flags ---
-AR             := ar
+AR             := emar
 ARFLAGS        := cru
 
 # --- Determine the linker and related flags ---
