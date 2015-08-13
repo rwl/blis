@@ -34,8 +34,13 @@
 
 #include "blis.h"
 
+static bool_t bli_cntl_is_init = FALSE;
+
 void bli_cntl_init( void )
 {
+	// If the API is already initialized, return early.
+	if ( bli_cntl_is_initialized() ) return;
+
 	// Level-1
 	bli_scalv_cntl_init();
 	bli_packv_cntl_init();
@@ -61,6 +66,9 @@ void bli_cntl_init( void )
 
 	// Level-3 induced
 	bli_ind_cntl_init();
+
+	// Mark API as initialized.
+	bli_cntl_is_init = TRUE;
 }
 
 void bli_cntl_finalize( void )
@@ -90,5 +98,13 @@ void bli_cntl_finalize( void )
 
 	// Level-3 induced
 	bli_ind_cntl_finalize();
+
+	// Mark API as uninitialized.
+	bli_cntl_is_init = FALSE;
+}
+
+bool_t bli_cntl_is_initialized( void )
+{
+	return bli_cntl_is_init;
 }
 

@@ -32,72 +32,51 @@
 
 */
 
-#ifndef BLIS_POOL_MACRO_DEFS_H
-#define BLIS_POOL_MACRO_DEFS_H
+#include "blis.h"
 
+obj_t BLIS_TWO;
+obj_t BLIS_ONE;
+obj_t BLIS_ONE_HALF;
+obj_t BLIS_ZERO;
+obj_t BLIS_MINUS_ONE_HALF;
+obj_t BLIS_MINUS_ONE;
+obj_t BLIS_MINUS_TWO;
 
-// Pool entry query
+static bool_t bli_const_is_init = FALSE;
 
-#define bli_pool_block_ptrs( pool_p ) \
-\
-	( (pool_p)->block_ptrs )
+void bli_const_init( void )
+{
+	// If the API is already initialized, return early.
+	if ( bli_const_is_initialized() ) return;
 
-#define bli_pool_num_blocks( pool_p ) \
-\
-	( (pool_p)->num_blocks )
+	bli_obj_create_const(  2.0, &BLIS_TWO );
+	bli_obj_create_const(  1.0, &BLIS_ONE );
+	bli_obj_create_const(  0.5, &BLIS_ONE_HALF );
+	bli_obj_create_const(  0.0, &BLIS_ZERO );
+	bli_obj_create_const( -0.5, &BLIS_MINUS_ONE_HALF );
+	bli_obj_create_const( -1.0, &BLIS_MINUS_ONE );
+	bli_obj_create_const( -2.0, &BLIS_MINUS_TWO );
 
-#define bli_pool_block_size( pool_p ) \
-\
-	( (pool_p)->block_size )
-
-#define bli_pool_top_index( pool_p ) \
-\
-	( (pool_p)->top_index )
-
-#define bli_pool_is_exhausted( pool_p ) \
-\
-	( bli_pool_top_index( pool_p ) == -1 )
-
-
-// Pool entry modification
-
-#define bli_pool_set_block_ptrs( block_ptrs0, pool_p ) \
-{ \
-    (pool_p)->block_ptrs = block_ptrs0; \
+	// Mark API as initialized.
+	bli_const_is_init = TRUE;
 }
 
-#define bli_pool_set_num_blocks( num_blocks0, pool_p ) \
-{ \
-    (pool_p)->num_blocks = num_blocks0; \
+void bli_const_finalize( void )
+{
+	bli_obj_free( &BLIS_TWO );
+	bli_obj_free( &BLIS_ONE );
+	bli_obj_free( &BLIS_ONE_HALF );
+	bli_obj_free( &BLIS_ZERO );
+	bli_obj_free( &BLIS_MINUS_ONE_HALF );
+	bli_obj_free( &BLIS_MINUS_ONE );
+	bli_obj_free( &BLIS_MINUS_TWO );
+
+	// Mark API as uninitialized.
+	bli_const_is_init = FALSE;
 }
 
-#define bli_pool_set_block_size( block_size0, pool_p ) \
-{ \
-    (pool_p)->block_size = block_size0; \
+bool_t bli_const_is_initialized( void )
+{
+	return bli_const_is_init;
 }
 
-#define bli_pool_set_top_index( top_index0, pool_p ) \
-{ \
-    (pool_p)->top_index = top_index0; \
-}
-
-#define bli_pool_dec_top_index( pool_p ) \
-{ \
-    ((pool_p)->top_index)--; \
-}
-
-#define bli_pool_inc_top_index( pool_p ) \
-{ \
-    ((pool_p)->top_index)++; \
-}
-
-#define bli_pool_init( num_blocks, block_size, block_ptrs, pool_p ) \
-{ \
-	bli_pool_set_num_blocks( num_blocks, pool_p ); \
-	bli_pool_set_block_size( block_size, pool_p ); \
-	bli_pool_set_block_ptrs( block_ptrs, pool_p ); \
-	bli_pool_set_top_index( num_blocks - 1, pool_p ); \
-}
-
-
-#endif 

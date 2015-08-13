@@ -34,7 +34,6 @@
 
 #include "blis.h"
 
-
 static void* bli_ind_oper_fp[BLIS_NUM_IND_METHODS][BLIS_NUM_LEVEL3_OPS] = 
 {
         /*   gemm   hemm   herk   her2k  symm   syrk,  syr2k  trmm3  trmm   trsm  */
@@ -212,14 +211,33 @@ char* bli_ind_oper_get_avail_impl_string( opid_t oper, num_t dt )
 
 // -----------------------------------------------------------------------------
 
+static bool_t bli_ind_is_init = FALSE;
+
 void bli_ind_init( void )
 {
+	// If the API is already initialized, return early.
+	if ( bli_ind_is_initialized() ) return;
+
 #ifdef BLIS_ENABLE_INDUCED_SCOMPLEX
 	bli_ind_enable_dt( BLIS_4M1A, BLIS_SCOMPLEX );
 #endif
 #ifdef BLIS_ENABLE_INDUCED_DCOMPLEX
 	bli_ind_enable_dt( BLIS_4M1A, BLIS_DCOMPLEX );
 #endif
+
+	// Mark API as initialized.
+	bli_ind_is_init = TRUE;
+}
+
+void bli_ind_finalize( void )
+{
+	// Mark API as uninitialized.
+	bli_ind_is_init = FALSE;
+}
+
+bool_t bli_ind_is_initialized( void )
+{
+	return bli_ind_is_init;
 }
 
 // -----------------------------------------------------------------------------

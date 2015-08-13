@@ -34,41 +34,26 @@
 
 #include "blis.h"
 
-// -- Global variables --
-
-static bool_t bli_initialized = FALSE;
-
-obj_t BLIS_TWO;
-obj_t BLIS_ONE;
-obj_t BLIS_ONE_HALF;
-obj_t BLIS_ZERO;
-obj_t BLIS_MINUS_ONE_HALF;
-obj_t BLIS_MINUS_ONE;
-obj_t BLIS_MINUS_TWO;
-
-packm_thrinfo_t BLIS_PACKM_SINGLE_THREADED;
-gemm_thrinfo_t BLIS_GEMM_SINGLE_THREADED;
-herk_thrinfo_t BLIS_HERK_SINGLE_THREADED;
-thread_comm_t BLIS_SINGLE_COMM;
-
 #ifdef BLIS_ENABLE_PTHREADS
 pthread_mutex_t initialize_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mem_manager_mutex;
 #endif
+
+static bool_t bli_is_init = FALSE;
+
 
 err_t bli_init( void )
 {
 	err_t r_val = BLIS_FAILURE;
 
-	// If bli_initialized is TRUE, then we know without a doubt that
+	// If bli_is_init is TRUE, then we know without a doubt that
 	// BLIS is presently initialized, and thus we can return early.
-	if ( bli_initialized == TRUE ) return r_val;
+	if ( bli_is_init == TRUE ) return r_val;
 
-	// NOTE: if bli_initialized is FALSE, we cannot be certain that BLIS
+	// NOTE: if bli_is_init is FALSE, we cannot be certain that BLIS
 	// is ready to be initialized; it may be the case that a thread is
 	// inside the critical section below and is already in the process
 	// of initializing BLIS, but has not yet finished and updated
-	// bli_initialized accordingly. This boolean asymmetry is important!
+	// bli_is_init accordingly. This boolean asymmetry is important!
 
 	// We enclose the bodies of bli_init() and bli_finalize() in a
 	// critical section (both with the same name) so that they can be
@@ -78,55 +63,48 @@ err_t bli_init( void )
 	// reasons), the conditional test below MUST be within the critical
 	// section to prevent a race condition of the type described above.
 
-	// BEGIN CRITICAL SECTION
-#ifdef BLIS_ENABLE_OPENMP        
+#ifdef BLIS_ENABLE_OPENMP
 	_Pragma( "omp critical (init)" )
 #endif
 #ifdef BLIS_ENABLE_PTHREADS
-    pthread_mutex_lock( &mem_manager_mutex );
+	pthread_mutex_lock( &initialize_mutex );
 #endif
+
+	// BEGIN CRITICAL SECTION
 	{
 
-	// Proceed with initialization only if BLIS is presently uninitialized.
-	// Since we bli_init() and bli_finalize() use the same named critical
-	// section, we can be sure that no other thread is either (a) updating
-	// bli_initialized, or (b) testing bli_initialized within the critical
-	// section (for the purposes of deciding whether to perform the
-	// necessary initialization subtasks).
-	if ( bli_initialized == FALSE )
-	{
-		bli_init_const();
+		// Proceed with initialization only if BLIS is presently uninitialized.
+		// Since we bli_init() and bli_finalize() use the same named critical
+		// section, we can be sure that no other thread is either (a) updating
+		// bli_is_init, or (b) testing bli_is_init within the critical section
+		// (for the purposes of deciding whether to perform the necessary
+		// initialization subtasks).
+		if ( bli_is_init == FALSE )
+		{
+			// Initialize various sub-APIs.
+			bli_const_init();
+			bli_cntl_init();
+			bli_error_init();
+			bli_mem_init();
+			bli_ind_init();
+			bli_thread_init();
 
-		bli_cntl_init();
+			// After initialization is complete, mark BLIS as initialized.
+			bli_is_init = TRUE;
 
-		bli_error_msgs_init();
+			//bli_mem_init();
 
-		bli_mem_init();
-    
-		bli_ind_init();
-    
-		bli_setup_communicator( &BLIS_SINGLE_COMM, 1 );
-		bli_setup_packm_single_threaded_info( &BLIS_PACKM_SINGLE_THREADED );
-		bli_setup_gemm_single_threaded_info( &BLIS_GEMM_SINGLE_THREADED );
-		bli_setup_herk_single_threaded_info( &BLIS_HERK_SINGLE_THREADED );
-
-		// After initialization is complete, mark BLIS as initialized.
-		bli_initialized = TRUE;
-
-		// Only the thread that actually performs the initialization will
-		// return "success".
-		r_val = BLIS_SUCCESS;
+			// Only the thread that actually performs the initialization will
+			// return "success".
+			r_val = BLIS_SUCCESS;
+		}
 	}
-
 	// END CRITICAL SECTION
-	}
-#ifdef BLIS_ENABLE_PTHREADS
-    pthread_mutex_unlock( &mem_manager_mutex );
-#endif
 
 #ifdef BLIS_ENABLE_PTHREADS
-    pthread_mutex_init( &mem_manager_mutex, NULL );
+	pthread_mutex_unlock( &initialize_mutex );
 #endif
+
 	return r_val;
 }
 
@@ -134,15 +112,15 @@ err_t bli_finalize( void )
 {
 	err_t r_val = BLIS_FAILURE;
 
-	// If bli_initialized is FALSE, then we know without a doubt that
+	// If bli_is_init is FALSE, then we know without a doubt that
 	// BLIS is presently uninitialized, and thus we can return early.
-	if ( bli_initialized == FALSE ) return r_val;
+	if ( bli_is_init == FALSE ) return r_val;
 
-	// NOTE: if bli_initialized is TRUE, we cannot be certain that BLIS
+	// NOTE: if bli_is_init is TRUE, we cannot be certain that BLIS
 	// is ready to be finalized; it may be the case that a thread is
 	// inside the critical section below and is already in the process
 	// of finalizing BLIS, but has not yet finished and updated
-	// bli_initialized accordingly. This boolean asymmetry is important!
+	// bli_is_init accordingly. This boolean asymmetry is important!
 
 	// We enclose the bodies of bli_init() and bli_finalize() in a
 	// critical section (both with the same name) so that they can be
@@ -152,73 +130,59 @@ err_t bli_finalize( void )
 	// reasons), the conditional test below MUST be within the critical
 	// section to prevent a race condition of the type described above.
 
-	// BEGIN CRITICAL SECTION
-#ifdef BLIS_ENABLE_OPENMP        
+#ifdef BLIS_ENABLE_OPENMP
 	_Pragma( "omp critical (init)" )
 #endif
 #ifdef BLIS_ENABLE_PTHREADS
-    pthread_mutex_lock( &mem_manager_mutex );
+	pthread_mutex_lock( &initialize_mutex );
 #endif
+
+	// BEGIN CRITICAL SECTION
 	{
 
-	// Proceed with finalization only if BLIS is presently initialized.
-	// Since we bli_init() and bli_finalize() use the same named critical
-	// section, we can be sure that no other thread is either (a) updating
-	// bli_initialized, or (b) testing bli_initialized within the critical
-	// section (for the purposes of deciding whether to perform the
-	// necessary finalization subtasks).
-	if ( bli_initialized == TRUE )
-	{
-		bli_finalize_const();
+		// Proceed with finalization only if BLIS is presently initialized.
+		// Since we bli_init() and bli_finalize() use the same named critical
+		// section, we can be sure that no other thread is either (a) updating
+		// bli_is_init, or (b) testing bli_is_init within the critical section
+		// (for the purposes of deciding whether to perform the necessary
+		// finalization subtasks).
+		if ( bli_is_init == TRUE )
+		{
+			// Finalize various sub-APIs.
+			bli_const_finalize();
+			bli_cntl_finalize();
+			bli_error_finalize();
+			bli_mem_finalize();
+			bli_ind_finalize();
+			bli_thread_finalize();
 
-		bli_cntl_finalize();
+			// After finalization is complete, mark BLIS as uninitialized.
+			bli_is_init = FALSE;
 
-		// Don't need to do anything to finalize error messages.
-
-		bli_mem_finalize();
-
-		// After finalization is complete, mark BLIS as uninitialized.
-		bli_initialized = FALSE;
-
-		// Only the thread that actually performs the finalization will
-		// return "success".
-		r_val = BLIS_SUCCESS;
+			// Only the thread that actually performs the finalization will
+			// return "success".
+			r_val = BLIS_SUCCESS;
+		}
 	}
-
 	// END CRITICAL SECTION
-	}
+
 #ifdef BLIS_ENABLE_PTHREADS
-    pthread_mutex_unlock( &mem_manager_mutex );
+	pthread_mutex_unlock( &initialize_mutex );
 #endif
 
 #ifdef BLIS_ENABLE_PTHREADS
-    pthread_mutex_destroy( &mem_manager_mutex );
+	pthread_mutex_destroy( &initialize_mutex );
 #endif
 
 	return r_val;
 }
 
-void bli_init_const( void )
+bool_t bli_is_initialized( void )
 {
-	bli_obj_create_const(  2.0, &BLIS_TWO );
-	bli_obj_create_const(  1.0, &BLIS_ONE );
-	bli_obj_create_const(  0.5, &BLIS_ONE_HALF );
-	bli_obj_create_const(  0.0, &BLIS_ZERO );
-	bli_obj_create_const( -0.5, &BLIS_MINUS_ONE_HALF );
-	bli_obj_create_const( -1.0, &BLIS_MINUS_ONE );
-	bli_obj_create_const( -2.0, &BLIS_MINUS_TWO );
+	return bli_is_init;
 }
 
-void bli_finalize_const( void )
-{
-	bli_obj_free( &BLIS_TWO );
-	bli_obj_free( &BLIS_ONE );
-	bli_obj_free( &BLIS_ONE_HALF );
-	bli_obj_free( &BLIS_ZERO );
-	bli_obj_free( &BLIS_MINUS_ONE_HALF );
-	bli_obj_free( &BLIS_MINUS_ONE );
-	bli_obj_free( &BLIS_MINUS_TWO );
-}
+// -----------------------------------------------------------------------------
 
 void bli_init_auto( err_t* init_result )
 {
